@@ -13,7 +13,8 @@ import {
   Music2,
   FastForward,
   Rewind,
-  Waves
+  Waves,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -361,6 +362,8 @@ export default function App() {
   const [deckB, setDeckB] = useState<DeckState>(INITIAL_DECK_STATE);
   const [crossfade, setCrossfade] = useState(0); // -1 to 1
   const [isRecording, setIsRecording] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [showStore, setShowStore] = useState(false);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [lightsActive, setLightsActive] = useState(true);
   const [lightMode, setLightMode] = useState<'strobe' | 'ambient' | 'pulse'>('pulse');
@@ -867,6 +870,14 @@ export default function App() {
                ))}
             </div>
           )}
+          
+          <button 
+            onClick={() => setShowStore(true)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black transition-all ${isPremium ? 'border-yellow-500/50 text-yellow-500' : 'border-[#00f2ff]/30 text-[#00f2ff] hover:bg-[#00f2ff]/10'}`}
+          >
+            <Zap size={14} fill={isPremium ? "currentColor" : "none"} />
+            {isPremium ? 'PRO UNLOCKED' : 'GO PRO'}
+          </button>
 
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${isRecording ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5'} transition-all`}>
             <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-ping' : 'bg-white/20'}`} />
@@ -1385,7 +1396,20 @@ export default function App() {
         </section>
       </main>
 
-      <footer className="z-10 mt-auto pt-12 pb-4 flex flex-col items-center gap-2 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
+      {/* Area Iklan Adsterra / Ads Holder */}
+      {!isPremium && (
+        <div className="fixed bottom-0 left-0 w-full h-[60px] bg-black/90 border-t border-[#00f2ff]/20 flex items-center justify-center z-40 backdrop-blur-md">
+          {/* 
+              TIPS: Tempel kode script Adsterra Anda di bawah ini jika Anda mengedit manual.
+              Untuk saat ini, ini adalah area holder agar layout tidak berantakan.
+          */}
+          <div className="text-center">
+            <p className="text-[10px] font-black text-[#00f2ff]/40 uppercase tracking-[0.4em] animate-pulse">Adsterra Ads Area</p>
+          </div>
+        </div>
+      )}
+
+      <footer className="z-10 mt-auto pt-12 pb-16 flex flex-col items-center gap-2 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
         <div className="flex items-center gap-4 mb-2">
           <Waves size={16} />
           <p className="text-[9px] font-mono tracking-[0.5em] uppercase">Built for the Walkers Society</p>
@@ -1398,6 +1422,66 @@ export default function App() {
            <Rewind size={12} />
         </div>
       </footer>
+
+      {/* Store Modal */}
+      <AnimatePresence>
+        {showStore && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-4">
+                <button onClick={() => setShowStore(false)} className="text-white/40 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="relative z-10 text-center">
+                <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Zap size={40} className="text-yellow-500" fill="currentColor" />
+                </div>
+                <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">Upgrade to Pro</h2>
+                <p className="text-white/60 text-sm mb-8">Unlock professional features and remove advertisements forever.</p>
+                
+                <div className="space-y-4 mb-8">
+                  {[
+                    "Remove Bottom Ads",
+                    "Recording Studio Access",
+                    "Exclusive FX & Samples",
+                    "Higher Audio Quality"
+                  ].map((feat, i) => (
+                    <div key={i} className="flex items-center gap-3 text-left">
+                      <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                      </div>
+                      <span className="text-sm text-white/80">{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={() => {
+                    setIsPremium(true);
+                    setShowStore(false);
+                    playSample('zap');
+                  }}
+                  className="w-full py-4 bg-yellow-500 text-black font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-400 transition-colors"
+                >
+                  Unlock Now - $4.99
+                </button>
+                <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest cursor-pointer hover:text-white/40 transition-colors">Restore Purchases</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style dangerouslySetInnerHTML={{ __html: `
         input[type="range"]::-webkit-slider-thumb {
