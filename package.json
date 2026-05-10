@@ -7,10 +7,6 @@
     "dev": "tsx server.ts",
     "start": "node server.ts",
     "build": "vite build",
-    "mobile:init": "cap init \"WALKER PRO DJ\" com.walker.prodj --web-dir dist",
-    "mobile:add": "cap add android",
-    "mobile:sync": "cap sync",
-    "mobile:open": "cap open android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
