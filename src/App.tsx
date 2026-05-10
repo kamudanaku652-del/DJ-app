@@ -364,6 +364,25 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [showStore, setShowStore] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    });
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    }
+  };
+
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [lightsActive, setLightsActive] = useState(true);
   const [lightMode, setLightMode] = useState<'strobe' | 'ambient' | 'pulse'>('pulse');
@@ -1476,6 +1495,15 @@ export default function App() {
                 >
                   Unlock Now - $4.99
                 </button>
+
+                {deferredPrompt && (
+                  <button 
+                    onClick={handleInstallClick}
+                    className="w-full mt-4 py-3 bg-white/10 text-white font-black uppercase tracking-widest rounded-2xl border border-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    Install App on Phone
+                  </button>
+                )}
                 <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest cursor-pointer hover:text-white/40 transition-colors">Restore Purchases</p>
               </div>
             </motion.div>
