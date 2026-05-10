@@ -35,6 +35,7 @@ interface DeckState {
   filter: number;
   echo: number;
   reverb: number;
+  flanger: number;
   loop: {
     active: boolean;
     start: number;
@@ -56,6 +57,7 @@ const INITIAL_DECK_STATE: DeckState = {
   filter: 20000,
   echo: 0,
   reverb: 0,
+  flanger: 0,
   loop: { active: false, start: 0, end: 0, length: 4 }
 };
 
@@ -232,23 +234,62 @@ const DjLights = ({ analyserA, analyserB, active, mode }: { analyserA: AnalyserN
   );
 };
 
-const JogWheel = ({ isPlaying, color, onScratch }: { isPlaying: boolean, color: string, onScratch?: (delta: number) => void }) => {
+const JogWheel = ({ isPlaying, color, onScratch, deck, playerRef }: { isPlaying: boolean, color: string, onScratch?: (delta: number) => void, deck: 'A' | 'B', playerRef: React.RefObject<HTMLAudioElement | null> }) => {
+  const [isScratching, setIsScratching] = useState(false);
+  const rotationRef = useRef(0);
+  const lastAngle = useRef(0);
+
+  const handlePan = (event: any, info: any) => {
+    if (!playerRef.current) return;
+    
+    // Calculate angle from center of jog wheel
+    const rect = event.target.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    const angle = Math.atan2(info.point.y - centerY, info.point.x - centerX) * (180 / Math.PI);
+    
+    if (isScratching) {
+      const delta = angle - lastAngle.current;
+      // Normalize delta
+      const normalizedDelta = delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta;
+      
+      // Seek audio
+      const seekAmount = normalizedDelta * 0.01;
+      playerRef.current.currentTime += seekAmount;
+      rotationRef.current += normalizedDelta;
+    }
+    
+    lastAngle.current = angle;
+  };
+
   return (
-    <div className="relative group">
+    <div className="relative group touch-none">
       <motion.div 
-        animate={isPlaying ? { 
-          rotate: 360,
-          boxShadow: [
-            `0 0 20px ${color}22`,
-            `0 0 40px ${color}44`,
-            `0 0 20px ${color}22`
-          ]
-        } : {}}
-        transition={isPlaying ? { 
+        onPanStart={(e, info) => {
+          setIsScratching(true);
+          const rect = (e.target as HTMLElement).getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          lastAngle.current = Math.atan2(info.point.y - centerY, info.point.x - centerX) * (180 / Math.PI);
+        }}
+        onPan={handlePan}
+        onPanEnd={() => setIsScratching(false)}
+        animate={isPlaying && !isScratching ? { 
+          rotate: rotationRef.current + 360,
+        } : { rotate: rotationRef.current }}
+        onUpdate={(latest) => {
+          if (typeof latest.rotate === 'number') {
+            rotationRef.current = latest.rotate;
+          }
+        }}
+        transition={isPlaying && !isScratching ? { 
           rotate: { duration: 2, repeat: Infinity, ease: "linear" },
-          boxShadow: { duration: 1, repeat: Infinity, ease: "easeInOut" }
-        } : {}}
-        className="w-40 h-40 rounded-full jog-wheel border-4 border-white/10 flex items-center justify-center relative cursor-grab active:cursor-grabbing shadow-2xl"
+        } : { rotate: { duration: 0 } }}
+        style={{
+          boxShadow: isPlaying ? `0 0 20px ${color}22` : 'none'
+        }}
+        className="w-40 h-40 rounded-full jog-wheel border-4 border-white/10 flex items-center justify-center relative cursor-grab active:cursor-grabbing shadow-2xl overflow-hidden"
       >
         <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
         <div className="w-32 h-32 rounded-full border-4 border-white/5 bg-black/40 flex items-center justify-center overflow-hidden">
@@ -291,6 +332,7 @@ export default function App() {
   const gainBRef = useRef<GainNode | null>(null);
   const analyserARef = useRef<AnalyserNode | null>(null);
   const analyserBRef = useRef<AnalyserNode | null>(null);
+  const masterAnalyserRef = useRef<AnalyserNode | null>(null);
 
   const filtersARef = useRef<{ sub: BiquadFilterNode; low: BiquadFilterNode; mid: BiquadFilterNode; high: BiquadFilterNode; lpf: BiquadFilterNode } | null>(null);
   const filtersBRef = useRef<{ sub: BiquadFilterNode; low: BiquadFilterNode; mid: BiquadFilterNode; high: BiquadFilterNode; lpf: BiquadFilterNode } | null>(null);
@@ -298,6 +340,8 @@ export default function App() {
   const echoNodesBRef = useRef<{ input: GainNode; delay: DelayNode; feedback: GainNode; output: GainNode } | null>(null);
   const reverbNodesARef = useRef<{ input: GainNode; convolver: ConvolverNode; output: GainNode } | null>(null);
   const reverbNodesBRef = useRef<{ input: GainNode; convolver: ConvolverNode; output: GainNode } | null>(null);
+  const flangerNodesARef = useRef<{ input: GainNode; delay: DelayNode; osc: OscillatorNode; feedback: GainNode; output: GainNode } | null>(null);
+  const flangerNodesBRef = useRef<{ input: GainNode; delay: DelayNode; osc: OscillatorNode; feedback: GainNode; output: GainNode } | null>(null);
 
   // Helper to create impulse response for reverb
   const createImpulseResponse = (ctx: AudioContext, duration: number, decay: number) => {
@@ -331,6 +375,10 @@ export default function App() {
 
     masterGainRef.current = ctx.createGain();
     masterGainRef.current.connect(ctx.destination);
+
+    masterAnalyserRef.current = ctx.createAnalyser();
+    masterAnalyserRef.current.fftSize = 1024;
+    masterGainRef.current.connect(masterAnalyserRef.current);
 
     const setupDeckAudio = (player: HTMLAudioElement, deckId: 'A' | 'B') => {
       const source = ctx.createMediaElementSource(player);
@@ -387,6 +435,28 @@ export default function App() {
       reverbInput.connect(reverbConvolver);
       reverbConvolver.connect(reverbOutput);
 
+      // --- FLANGER SETUP ---
+      const flangerInput = ctx.createGain();
+      const flangerDelay = ctx.createDelay();
+      flangerDelay.delayTime.value = 0.005;
+      const flangerFeedback = ctx.createGain();
+      flangerFeedback.gain.value = 0.5;
+      const flangerOsc = ctx.createOscillator();
+      const flangerDepth = ctx.createGain();
+      flangerDepth.gain.value = 0.002;
+      flangerOsc.frequency.value = 0.25;
+      const flangerOutput = ctx.createGain();
+      flangerOutput.gain.value = 0;
+
+      flangerOsc.connect(flangerDepth);
+      flangerDepth.connect(flangerDelay.delayTime);
+      flangerOsc.start();
+
+      flangerInput.connect(flangerDelay);
+      flangerDelay.connect(flangerOutput);
+      flangerDelay.connect(flangerFeedback);
+      flangerFeedback.connect(flangerInput);
+
       // Connections Path: source -> filters -> split(dry/wet) -> gain -> analyser -> master
       source.connect(sub);
       sub.connect(low);
@@ -404,6 +474,9 @@ export default function App() {
       lpf.connect(reverbInput);
       reverbOutput.connect(gain);
 
+      lpf.connect(flangerInput);
+      flangerOutput.connect(gain);
+
       gain.connect(analyser);
       gain.connect(masterGainRef.current!);
 
@@ -413,12 +486,14 @@ export default function App() {
         filtersARef.current = { sub, low, mid, high, lpf };
         echoNodesARef.current = { input: echoInput, delay: echoDelay, feedback: echoFeedback, output: echoOutput };
         reverbNodesARef.current = { input: reverbInput, convolver: reverbConvolver, output: reverbOutput };
+        flangerNodesARef.current = { input: flangerInput, delay: flangerDelay, osc: flangerOsc, feedback: flangerFeedback, output: flangerOutput };
       } else {
         gainBRef.current = gain;
         analyserBRef.current = analyser;
         filtersBRef.current = { sub, low, mid, high, lpf };
         echoNodesBRef.current = { input: echoInput, delay: echoDelay, feedback: echoFeedback, output: echoOutput };
         reverbNodesBRef.current = { input: reverbInput, convolver: reverbConvolver, output: reverbOutput };
+        flangerNodesBRef.current = { input: flangerInput, delay: flangerDelay, osc: flangerOsc, feedback: flangerFeedback, output: flangerOutput };
       }
     };
 
@@ -441,6 +516,15 @@ export default function App() {
       nodes.output.gain.setTargetAtTime(value, audioCtxRef.current!.currentTime, 0.1);
       const setter = deck === 'A' ? setDeckA : setDeckB;
       setter(prev => ({ ...prev, reverb: value }));
+    }
+  };
+
+  const handleFlanger = (deck: 'A' | 'B', value: number) => {
+    const nodes = deck === 'A' ? flangerNodesARef.current : flangerNodesBRef.current;
+    if (nodes) {
+      nodes.output.gain.setTargetAtTime(value, audioCtxRef.current!.currentTime, 0.1);
+      const setter = deck === 'A' ? setDeckA : setDeckB;
+      setter(prev => ({ ...prev, flanger: value }));
     }
   };
 
@@ -473,7 +557,7 @@ export default function App() {
     }
   };
 
-  const playSample = (type: 'kick' | 'snare' | 'hihat' | 'airhorn') => {
+  const playSample = (type: 'kick' | 'snare' | 'hihat' | 'airhorn' | 'clap' | 'cowbell' | 'cymbal' | 'zap') => {
     initAudio();
     const ctx = audioCtxRef.current!;
     const osc = ctx.createOscillator();
@@ -509,6 +593,44 @@ export default function App() {
         g.gain.setValueAtTime(0.5, ctx.currentTime);
         g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
         osc.start(); osc.stop(ctx.currentTime + 0.8);
+        break;
+      case 'clap':
+        // Generate clap-like noise
+        const bufferSize = ctx.sampleRate * 0.1;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1200;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.8, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        noise.connect(filter).connect(gain).connect(ctx.destination);
+        noise.start();
+        break;
+      case 'cowbell':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        g.gain.setValueAtTime(0.6, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+        break;
+      case 'cymbal':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(12000, ctx.currentTime);
+        g.gain.setValueAtTime(0.3, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(); osc.stop(ctx.currentTime + 0.5);
+        break;
+      case 'zap':
+        osc.frequency.setValueAtTime(2000, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(10, ctx.currentTime + 0.2);
+        g.gain.setValueAtTime(0.4, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.start(); osc.stop(ctx.currentTime + 0.2);
         break;
     }
   };
@@ -626,6 +748,12 @@ export default function App() {
     }
   };
 
+  const handleSync = (targetDeck: 'A' | 'B') => {
+    const sourceRate = targetDeck === 'B' ? deckA.playbackRate : deckB.playbackRate;
+    handlePitch(targetDeck, sourceRate);
+    playSample('zap');
+  };
+
   // Recording
   const startRecording = () => {
     initAudio();
@@ -712,9 +840,7 @@ export default function App() {
            <div className="text-center">
               <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">Master Level</p>
               <div className="flex gap-1 h-8 items-end">
-                 {[...Array(12)].map((_, i) => (
-                    <div key={i} className={`w-1.5 rounded-full ${i > 8 ? 'bg-red-500' : 'bg-[#00f2ff]'} ${i === 5 ? 'h-full' : 'h-[60%]'}`} />
-                 ))}
+                 <Visualizer analyser={masterAnalyserRef.current} color="#00f2ff" type="bars" />
               </div>
            </div>
         </div>
@@ -785,7 +911,7 @@ export default function App() {
                 <VuMeter analyser={analyserARef.current} />
               </div>
               <div className="col-span-7 flex flex-col justify-center items-center relative gap-4">
-                <JogWheel isPlaying={deckA.isPlaying} color="#ffffff" />
+                <JogWheel isPlaying={deckA.isPlaying} color="#ffffff" deck="A" playerRef={playerARef} />
                 <div className="flex gap-1 w-full px-4 items-end h-16">
                    <Visualizer analyser={analyserARef.current} color="#ffffff" type={deckA.isPlaying ? 'bars' : 'wave'} />
                 </div>
@@ -859,7 +985,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-6 grid grid-cols-4 gap-4">
                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                   <div className="flex justify-between mb-2">
                     <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Sub Bass</span>
@@ -896,6 +1022,18 @@ export default function App() {
                     className="w-full h-1 accent-white"
                   />
                </div>
+               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-[#00f2ff]/60">Flange FX</span>
+                    <span className="text-[8px] font-mono text-[#00f2ff]/80">{Math.round(deckA.flanger * 100)}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="1" step="0.01" 
+                    value={deckA.flanger}
+                    onChange={(e) => handleFlanger('A', parseFloat(e.target.value))}
+                    className="w-full h-1 accent-[#00f2ff]"
+                  />
+               </div>
             </div>
 
             <div className="mt-8 grid grid-cols-4 gap-3">
@@ -922,6 +1060,12 @@ export default function App() {
                   onChange={(e) => handlePitch('A', parseFloat(e.target.value))}
                   className="w-full accent-white h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                 />
+                <button 
+                  onClick={() => handleSync('A')}
+                  className="w-full h-8 rounded-lg bg-white/5 border border-white/10 text-[8px] font-black hover:bg-white/10 transition-all uppercase tracking-widest"
+                >
+                  SYNC TO B
+                </button>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[9px] font-mono text-white/40 uppercase">
@@ -939,11 +1083,11 @@ export default function App() {
           </div>
           
           <div className="grid grid-cols-4 gap-2">
-            {(['kick', 'snare', 'hihat', 'airhorn'] as const).map(sample => (
+            {(['kick', 'snare', 'hihat', 'airhorn', 'clap', 'cowbell', 'cymbal', 'zap'] as const).map(sample => (
               <button 
                 key={sample} 
                 onClick={() => playSample(sample)}
-                className="h-16 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black hover:bg-white/10 hover:scale-105 active:scale-90 transition-all uppercase tracking-[0.2em]"
+                className="h-14 rounded-xl bg-white/5 border border-white/10 text-[8px] font-black hover:bg-white/10 hover:scale-105 active:scale-90 transition-all uppercase tracking-[0.2em]"
               >
                 {sample}
               </button>
@@ -1053,8 +1197,8 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="col-span-7 flex flex-col justify-center items-center relative gap-4">
-                <JogWheel isPlaying={deckB.isPlaying} color="#00f2ff" />
+              <div className="col-span-12 xl:col-span-7 flex flex-col justify-center items-center relative gap-4">
+                <JogWheel isPlaying={deckB.isPlaying} color="#00f2ff" deck="B" playerRef={playerBRef} />
                 <div className="flex gap-1 w-full px-4 items-end h-16">
                    <Visualizer analyser={analyserBRef.current} color="#00f2ff" type={deckB.isPlaying ? 'bars' : 'wave'} />
                 </div>
@@ -1117,7 +1261,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-6 grid grid-cols-4 gap-4">
                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                   <div className="flex justify-between mb-2">
                     <span className="text-[8px] font-black uppercase tracking-widest text-[#00f2ff]/40">Sub Bass</span>
@@ -1151,6 +1295,18 @@ export default function App() {
                     type="range" min="0" max="1" step="0.01" 
                     value={deckB.reverb}
                     onChange={(e) => handleReverb('B', parseFloat(e.target.value))}
+                    className="w-full h-1 accent-[#00f2ff]"
+                  />
+               </div>
+               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-[#00f2ff]/60">Flange FX</span>
+                    <span className="text-[8px] font-mono text-[#00f2ff]/80">{Math.round(deckB.flanger * 100)}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="1" step="0.01" 
+                    value={deckB.flanger}
+                    onChange={(e) => handleFlanger('B', parseFloat(e.target.value))}
                     className="w-full h-1 accent-[#00f2ff]"
                   />
                </div>
@@ -1193,6 +1349,12 @@ export default function App() {
                   onChange={(e) => handlePitch('B', parseFloat(e.target.value))}
                   className="w-full accent-[#00f2ff] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                 />
+                <button 
+                  onClick={() => handleSync('B')}
+                  className="w-full h-8 rounded-lg bg-[#00f2ff]/10 border border-[#00f2ff]/20 text-[8px] font-black hover:bg-[#00f2ff]/20 text-[#00f2ff] transition-all uppercase tracking-widest"
+                >
+                  SYNC TO A
+                </button>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[9px] font-mono text-[#00f2ff]/40 uppercase">
@@ -1210,11 +1372,11 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-4 gap-2">
-            {(['kick', 'snare', 'hihat', 'airhorn'] as const).map(sample => (
+            {(['kick', 'snare', 'hihat', 'airhorn', 'clap', 'cowbell', 'cymbal', 'zap'] as const).map(sample => (
               <button 
                 key={sample} 
                 onClick={() => playSample(sample)}
-                className="h-16 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black hover:bg-[#00f2ff]/20 hover:scale-105 active:scale-90 transition-all uppercase tracking-[0.2em]"
+                className="h-14 rounded-xl bg-white/5 border border-white/10 text-[8px] font-black hover:bg-[#00f2ff]/20 hover:scale-105 active:scale-90 transition-all uppercase tracking-[0.2em]"
               >
                 {sample}
               </button>
