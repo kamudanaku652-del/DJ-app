@@ -4,5 +4,5 @@
   "requestFramePermissions": [
     "microphone"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": ["mobile-ready", "capacitor-integrated"]
 }
