@@ -1,0 +1,17 @@
+{
+  "name": "WALKER PRO DJ",
+  "short_name": "WalkerDJ",
+  "description": "Professional DJ Console inspired by Alan Walker style.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#00f2ff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3659/3659795.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

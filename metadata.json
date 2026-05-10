@@ -1,0 +1,8 @@
+{
+  "name": "Remix: WALKER PRO DJ",
+  "description": "The Ultra-Performance Professional DJ Console X-1. Featuring sub-bass enhancement, advanced FX stacking, high-precision filters, and multi-cue triggers for world-class performances.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
