@@ -13,6 +13,9 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        devOptions: {
+          enabled: true
+        },
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'WALKER PRO DJ',
@@ -22,8 +25,18 @@ export default defineConfig(({mode}) => {
           background_color: '#050505',
           display: 'standalone',
           scope: '/DJ-app/',
-          start_url: '/DJ-app/',
+          start_url: '/DJ-app/index.html',
           icons: [
+            {
+              src: 'https://cdn-icons-png.flaticon.com/512/3659/3659795.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'https://cdn-icons-png.flaticon.com/512/3659/3659795.png',
+              sizes: '512x512',
+              type: 'image/png'
+            },
             {
               src: 'https://cdn-icons-png.flaticon.com/512/3659/3659795.png',
               sizes: '512x512',
