@@ -364,7 +364,22 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [showStore, setShowStore] = useState(false);
+  const [isJedagJedug, setIsJedagJedug] = useState(false);
+  const [isPump, setIsPump] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Jedag Jedug Logic
+  useEffect(() => {
+    let interval: any;
+    if (isJedagJedug) {
+      interval = setInterval(() => {
+        playSample('kick');
+        setIsPump(true);
+        setTimeout(() => setIsPump(false), 100);
+      }, 500); // 120 BPM roughly
+    }
+    return () => clearInterval(interval);
+  }, [isJedagJedug]);
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -829,7 +844,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 relative overflow-hidden selection:bg-[#00f2ff] selection:text-black">
+    <div className={`min-h-screen flex flex-col items-center justify-start p-4 md:p-8 relative overflow-hidden selection:bg-[#00f2ff] selection:text-black transition-all duration-75 ${isPump ? 'scale-[1.01] brightness-125' : 'scale-100 brightness-100'}`}>
       {/* DJ Lights Engine */}
       <DjLights 
         analyserA={analyserARef.current} 
@@ -896,6 +911,14 @@ export default function App() {
           >
             <Zap size={14} fill={isPremium ? "currentColor" : "none"} />
             {isPremium ? 'PRO UNLOCKED' : 'GO PRO'}
+          </button>
+
+          <button 
+            onClick={() => setIsJedagJedug(!isJedagJedug)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black transition-all ${isJedagJedug ? 'border-red-500 bg-red-500/20 text-red-500 animate-pulse scale-110' : 'border-white/10 text-white/40 hover:bg-white/5'}`}
+          >
+            <Music size={14} className={isJedagJedug ? 'animate-spin' : ''} />
+            JEDAG JEDUG
           </button>
 
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${isRecording ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5'} transition-all`}>
