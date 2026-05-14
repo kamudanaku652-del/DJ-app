@@ -10,6 +10,7 @@ import {
   Download, 
   RotateCcw,
   Activity,
+  Music,
   Music2,
   FastForward,
   Rewind,
