@@ -236,15 +236,15 @@ const DjLights = ({ analyserA, analyserB, active, mode }: { analyserA: AnalyserN
   );
 };
 
-const JogWheel = ({ isPlaying, color, onScratch, deck, playerRef }: { isPlaying: boolean, color: string, onScratch?: (delta: number) => void, deck: 'A' | 'B', playerRef: React.RefObject<HTMLAudioElement | null> }) => {
+const JogWheel = ({ isPlaying, color, onScratch, deck, playerRef, vinylMode }: { isPlaying: boolean, color: string, onScratch?: (delta: number) => void, deck: 'A' | 'B', playerRef: React.RefObject<HTMLAudioElement | null>, vinylMode: boolean }) => {
   const [isScratching, setIsScratching] = useState(false);
   const rotationRef = useRef(0);
   const lastAngle = useRef(0);
+  const velocityRef = useRef(0);
 
   const handlePan = (event: any, info: any) => {
     if (!playerRef.current) return;
     
-    // Calculate angle from center of jog wheel
     const rect = event.target.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -253,30 +253,41 @@ const JogWheel = ({ isPlaying, color, onScratch, deck, playerRef }: { isPlaying:
     
     if (isScratching) {
       const delta = angle - lastAngle.current;
-      // Normalize delta
       const normalizedDelta = delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta;
       
-      // Seek audio
-      const seekAmount = normalizedDelta * 0.01;
-      playerRef.current.currentTime += seekAmount;
+      velocityRef.current = normalizedDelta;
+      
+      if (vinylMode) {
+        // High-precision scratching
+        playerRef.current.currentTime += normalizedDelta * 0.0025;
+      } else {
+        // Search mode
+        playerRef.current.currentTime += normalizedDelta * 0.05;
+      }
+      
       rotationRef.current += normalizedDelta;
+      if (onScratch) onScratch(normalizedDelta);
     }
     
     lastAngle.current = angle;
   };
 
   return (
-    <div className="relative group touch-none">
+    <div className="relative group touch-none select-none">
       <motion.div 
         onPanStart={(e, info) => {
           setIsScratching(true);
+          if (playerRef.current && vinylMode) playerRef.current.pause();
           const rect = (e.target as HTMLElement).getBoundingClientRect();
           const centerX = rect.left + rect.width / 2;
           const centerY = rect.top + rect.height / 2;
           lastAngle.current = Math.atan2(info.point.y - centerY, info.point.x - centerX) * (180 / Math.PI);
         }}
         onPan={handlePan}
-        onPanEnd={() => setIsScratching(false)}
+        onPanEnd={() => {
+          setIsScratching(false);
+          if (playerRef.current && isPlaying) playerRef.current.play();
+        }}
         animate={isPlaying && !isScratching ? { 
           rotate: rotationRef.current + 360,
         } : { rotate: rotationRef.current }}
@@ -287,27 +298,39 @@ const JogWheel = ({ isPlaying, color, onScratch, deck, playerRef }: { isPlaying:
         }}
         transition={isPlaying && !isScratching ? { 
           rotate: { duration: 2, repeat: Infinity, ease: "linear" },
-        } : { rotate: { duration: 0 } }}
-        style={{
-          boxShadow: isPlaying ? `0 0 20px ${color}22` : 'none'
-        }}
-        className="w-40 h-40 rounded-full jog-wheel border-4 border-white/10 flex items-center justify-center relative cursor-grab active:cursor-grabbing shadow-2xl overflow-hidden"
+        } : { rotate: { duration: 0.1, ease: "easeOut" } }}
+        className="w-48 h-48 rounded-full jog-wheel border-[6px] border-[#222] bg-[#0a0a0a] flex items-center justify-center relative cursor-grab active:cursor-grabbing shadow-[0_0_40px_rgba(0,0,0,0.8),inset_0_0_20px_rgba(255,255,255,0.05)] overflow-hidden"
       >
         <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none" />
-        <div className="w-32 h-32 rounded-full border-4 border-white/5 bg-black/40 flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          <Disc size={60} className="text-white/10 animate-pulse" />
-        </div>
-        <div className="absolute top-2 w-1.5 h-6 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ backgroundColor: color }} />
         
-        {/* Vinyl Grooves Effect */}
-        {[...Array(6)].map((_, i) => (
+        {/* Metal Texture Patterns */}
+        <div className="absolute inset-0 opacity-20 pointer-events-none" 
+             style={{ background: 'conic-gradient(from 0deg, #333, #000, #333, #000, #333)' }} />
+        
+        <div className="w-36 h-36 rounded-full border-2 border-white/5 bg-[#050505] flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_#fff,_transparent)]" />
+          <div className="relative z-10 flex flex-col items-center">
+            <Disc size={60} className={`transition-all duration-300 ${isPlaying ? 'text-white/20 animate-spin-slow' : 'text-white/5'}`} />
+            <span className="text-[10px] font-black tracking-widest text-white/10 mt-2">ULTRA DRIVE</span>
+          </div>
+        </div>
+
+        {/* Position Marker */}
+        <div className="absolute top-2 w-2 h-8 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20" 
+             style={{ backgroundColor: isScratching ? '#fff' : color }} />
+        
+        {/* Vinyl Grooves Impact */}
+        {[...Array(8)].map((_, i) => (
           <div 
             key={i}
-            className="absolute rounded-full border border-white/5 pointer-events-none"
-            style={{ inset: `${(i + 1) * 12}px` }}
+            className="absolute rounded-full border border-white/[0.03] pointer-events-none"
+            style={{ inset: `${(i + 1) * 10}px` }}
           />
         ))}
+        
+        {/* Active Ring */}
+        <div className={`absolute inset-0 rounded-full border-2 transition-opacity duration-300 ${isPlaying ? 'opacity-40' : 'opacity-0'}`} 
+             style={{ borderColor: color }} />
       </motion.div>
     </div>
   );
@@ -366,8 +389,25 @@ export default function App() {
   const [isPremium, setIsPremium] = useState(false);
   const [showStore, setShowStore] = useState(false);
   const [isJedagJedug, setIsJedagJedug] = useState(false);
+  const [isSubBassBoost, setIsSubBassBoost] = useState(false);
   const [isPump, setIsPump] = useState(false);
+  const [isShake, setIsShake] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isVinylMode, setIsVinylMode] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // PRO SCRATCHING ENGINE
+  const scratch = (deck: 'A' | 'B', delta: number) => {
+    const player = deck === 'A' ? playerARef.current : playerBRef.current;
+    if (!player) return;
+
+    // Direct seeking for fast scratching
+    player.currentTime += delta * 0.04;
+    
+    // Impact visual for scratch
+    setIsPump(true);
+    setTimeout(() => setIsPump(false), 50);
+  };
 
   // Jedag Jedug Logic
   useEffect(() => {
@@ -376,11 +416,28 @@ export default function App() {
       interval = setInterval(() => {
         playSample('kick');
         setIsPump(true);
-        setTimeout(() => setIsPump(false), 100);
+        setIsShake(true);
+        setTimeout(() => {
+          setIsPump(false);
+          setIsShake(false);
+        }, 150);
       }, 500); // 120 BPM roughly
     }
     return () => clearInterval(interval);
   }, [isJedagJedug]);
+
+  // Global Bass Boost Impact
+  useEffect(() => {
+    if (isSubBassBoost) {
+      handleSubBass('A', 15);
+      handleSubBass('B', 15);
+      handleEQ('A', 'low', 10);
+      handleEQ('B', 'low', 10);
+    } else {
+      handleSubBass('A', 0);
+      handleSubBass('B', 0);
+    }
+  }, [isSubBassBoost]);
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -604,11 +661,12 @@ export default function App() {
 
     switch(type) {
       case 'kick':
-        osc.frequency.setValueAtTime(150, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        g.gain.setValueAtTime(1, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        osc.start(); osc.stop(ctx.currentTime + 0.3);
+        // Deeper, harder kick for Jedag Jedug
+        osc.frequency.setValueAtTime(100, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        g.gain.setValueAtTime(1.5, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(); osc.stop(ctx.currentTime + 0.4);
         break;
       case 'snare':
         osc.type = 'sawtooth';
@@ -697,23 +755,32 @@ export default function App() {
     }
   };
 
-  const togglePlay = (deck: 'A' | 'B') => {
+  const togglePlay = async (deck: 'A' | 'B') => {
     initAudio();
     if (audioCtxRef.current?.state === 'suspended') {
-      audioCtxRef.current.resume();
+      await audioCtxRef.current.resume();
     }
 
     const player = deck === 'A' ? playerARef.current : playerBRef.current;
     if (!player) return;
 
+    const setter = deck === 'A' ? setDeckA : setDeckB;
+
     if (player.paused) {
-      player.play();
+      try {
+        const playPromise = player.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        setter(prev => ({ ...prev, isPlaying: true }));
+      } catch (error) {
+        console.error("Playback failed or was interrupted:", error);
+        setter(prev => ({ ...prev, isPlaying: false }));
+      }
     } else {
       player.pause();
+      setter(prev => ({ ...prev, isPlaying: false }));
     }
-    
-    const setter = deck === 'A' ? setDeckA : setDeckB;
-    setter(prev => ({ ...prev, isPlaying: !player.paused }));
   };
 
   const setCue = (deck: 'A' | 'B', index: number = 0) => {
@@ -833,7 +900,9 @@ export default function App() {
     const interval = setInterval(() => {
       rate -= 0.05;
       if (rate <= 0) {
-        player.pause();
+        if (player.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+          player.pause();
+        }
         player.playbackRate = 1.0;
         clearInterval(interval);
         const setter = deck === 'A' ? setDeckA : setDeckB;
@@ -845,7 +914,7 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-start p-4 md:p-8 relative overflow-hidden selection:bg-[#00f2ff] selection:text-black transition-all duration-75 ${isPump ? 'scale-[1.01] brightness-125' : 'scale-100 brightness-100'}`}>
+    <div className={`min-h-screen flex flex-col items-center justify-start p-4 md:p-8 relative overflow-hidden selection:bg-[#00f2ff] selection:text-black transition-all duration-75 ${isPump ? 'scale-[1.01] brightness-125' : 'scale-100 brightness-100'} ${isShake ? 'translate-y-[-2px] translate-x-[1px]' : ''}`}>
       {/* DJ Lights Engine */}
       <DjLights 
         analyserA={analyserARef.current} 
@@ -881,6 +950,14 @@ export default function App() {
                  <Visualizer analyser={masterAnalyserRef.current} color="#00f2ff" type="bars" />
               </div>
            </div>
+           <div className="w-[1px] h-10 bg-white/10" />
+           <button 
+             className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-all group"
+             onClick={() => playSample('hihat')}
+           >
+             <p className="text-[8px] font-black text-white/20 uppercase tracking-widest group-active:text-white transition-colors">Tap</p>
+             <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-black text-white/40 group-active:bg-white/10 group-active:text-white transition-all">BPM</div>
+           </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -916,10 +993,18 @@ export default function App() {
 
           <button 
             onClick={() => setIsJedagJedug(!isJedagJedug)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black transition-all ${isJedagJedug ? 'border-red-500 bg-red-500/20 text-red-500 animate-pulse scale-110' : 'border-white/10 text-white/40 hover:bg-white/5'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black transition-all ${isJedagJedug ? 'border-red-500 bg-red-500/20 text-red-500 animate-pulse scale-110 shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'border-white/10 text-white/40 hover:bg-white/5'}`}
           >
             <Music size={14} className={isJedagJedug ? 'animate-spin' : ''} />
             JEDAG JEDUG
+          </button>
+
+          <button 
+            onClick={() => setIsSubBassBoost(!isSubBassBoost)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black transition-all ${isSubBassBoost ? 'border-orange-500 bg-orange-500/20 text-orange-500 scale-110' : 'border-white/10 text-white/40 hover:bg-white/5'}`}
+          >
+            <Activity size={14} className={isSubBassBoost ? 'animate-bounce' : ''} />
+            BASS POWER
           </button>
 
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${isRecording ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5'} transition-all`}>
@@ -936,6 +1021,33 @@ export default function App() {
       </header>
 
       <main className="z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* BEAT BATTLE MONITOR */}
+        <div className="lg:col-span-12 bg-black/60 rounded-2xl border border-white/5 p-4 flex flex-col gap-2 relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#00f2ff]/30 to-transparent" />
+           <div className="flex justify-between items-center mb-1">
+              <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.4em]">Battle Monitor Alpha-Bravo</span>
+              <div className="flex gap-4">
+                 <div className="flex items-center gap-1">
+                   <div className="w-1 h-1 rounded-full bg-white" />
+                   <span className="text-[8px] font-mono text-white/40">DECK A</span>
+                 </div>
+                 <div className="flex items-center gap-1">
+                   <div className="w-1 h-1 rounded-full bg-[#00f2ff]" />
+                   <span className="text-[8px] font-mono text-[#00f2ff]/40">DECK B</span>
+                 </div>
+              </div>
+           </div>
+           <div className="h-20 w-full bg-zinc-950/50 rounded-lg overflow-hidden flex flex-col gap-1 p-1">
+              <div className="flex-1 opacity-80 h-1/2">
+                <Visualizer analyser={analyserARef.current} color="#ffffff" type="wave" />
+              </div>
+              <div className="flex-1 opacity-80 h-1/2">
+                <Visualizer analyser={analyserBRef.current} color="#00f2ff" type="wave" />
+              </div>
+           </div>
+           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/5 z-10 pointer-events-none" />
+           <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-white/20 z-10 pointer-events-none" />
+        </div>
         
         {/* DECK A */}
         <section className="lg:col-span-12 xl:col-span-5 flex flex-col gap-4">
@@ -960,12 +1072,33 @@ export default function App() {
               </label>
             </div>
 
-            <div className="grid grid-cols-12 gap-4 h-56">
+            <div className="grid grid-cols-12 gap-4 h-64">
               <div className="col-span-1 flex flex-col justify-center items-center py-4">
                 <VuMeter analyser={analyserARef.current} />
               </div>
               <div className="col-span-7 flex flex-col justify-center items-center relative gap-4">
-                <JogWheel isPlaying={deckA.isPlaying} color="#ffffff" deck="A" playerRef={playerARef} />
+                <div className="relative">
+                  <JogWheel 
+                    isPlaying={deckA.isPlaying} 
+                    color="#ffffff" 
+                    deck="A" 
+                    playerRef={playerARef} 
+                    vinylMode={isVinylMode}
+                    onScratch={() => scratch('A', 1)}
+                  />
+                  {/* Pitch Fader A */}
+                  <div className="absolute top-0 -right-12 h-full flex flex-col items-center gap-2">
+                    <span className="text-[7px] font-black text-white/40 uppercase">Pitch</span>
+                    <div className="relative flex-1 w-4 bg-black/40 rounded-full border border-white/5 flex items-center justify-center">
+                       <input 
+                        type="range" min="0.5" max="2" step="0.001" 
+                        value={deckA.playbackRate}
+                        onChange={(e) => handlePitch('A', parseFloat(e.target.value))}
+                        className="absolute w-40 rotate-[-90deg] accent-white bg-transparent appearance-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div className="flex gap-1 w-full px-4 items-end h-16">
                    <Visualizer analyser={analyserARef.current} color="#ffffff" type={deckA.isPlaying ? 'bars' : 'wave'} />
                 </div>
@@ -1001,23 +1134,29 @@ export default function App() {
                 ))}
               </div>
               
-              {[0, 1, 2, 3].map(i => (
+              {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
                 <button 
                   key={i}
-                  onClick={() => deckA.cues[i] === 0 ? setCue('A', i) : jumpToCue('A', i)}
-                  className={`h-14 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.cues[i] !== 0 ? 'bg-orange-500/20 border-orange-500 text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'bg-white/5 border-white/10 text-white/20'}`}
+                  onClick={() => deckA.cues[i] === undefined || deckA.cues[i] === 0 ? setCue('A', i) : jumpToCue('A', i)}
+                  className={`h-12 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.cues[i] && deckA.cues[i] !== 0 ? 'bg-cyan-500/40 border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-white/5 border-white/10 text-white/20'}`}
                 >
-                  CUE {i + 1}
+                  {i + 1}
                 </button>
               ))}
             </div>
 
             <div className="mt-8 grid grid-cols-4 gap-2">
               <button 
-                onClick={() => handleEQ('A', 'low', deckA.eq.low === -40 ? 0 : -40)}
-                className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.eq.low <= -20 ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-white/5 border-white/10 text-white/40'}`}
+                onClick={() => setIsVinylMode(!isVinylMode)}
+                className={`flex items-center justify-center gap-1 h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${isVinylMode ? 'bg-[#00f2ff] text-black border-[#00f2ff] shadow-[0_0_20px_rgba(0,242,255,0.4)]' : 'bg-white/5 border-white/10 text-white/40'}`}
               >
-                Kill Low
+                VINYL MODE
+              </button>
+              <button 
+                onClick={() => handleFilter('A', deckA.filter < 500 ? 20000 : 300)}
+                className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.filter < 500 ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'bg-white/5 border-white/10 text-white/40'}`}
+              >
+                KILL FILTER
               </button>
               <button 
                 onClick={() => handleEQ('A', 'mid', deckA.eq.mid === -40 ? 0 : -40)}
@@ -1030,12 +1169,6 @@ export default function App() {
                 className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.eq.high <= -20 ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'bg-white/5 border-white/10 text-white/40'}`}
               >
                 Kill High
-              </button>
-              <button 
-                onClick={() => handleFilter('A', deckA.filter < 500 ? 20000 : 300)}
-                className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckA.filter < 500 ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'bg-white/5 border-white/10 text-white/40'}`}
-              >
-                Kill LPF
               </button>
             </div>
 
@@ -1093,47 +1226,21 @@ export default function App() {
             <div className="mt-8 grid grid-cols-4 gap-3">
               <button 
                 onClick={() => togglePlay('A')}
-                className={`col-span-2 flex items-center justify-center gap-2 h-16 rounded-xl font-black transition-all text-sm tracking-widest ${deckA.isPlaying ? 'bg-white text-black scale-95 shadow-[0_0_30px_rgba(255,255,255,0.3)]' : 'bg-white/10 hover:bg-white/20'}`}
+                className={`col-span-2 flex items-center justify-center gap-2 h-20 rounded-xl font-black transition-all text-sm tracking-widest ${deckA.isPlaying ? 'bg-white text-black scale-95 shadow-[0_0_30px_rgba(255,255,255,0.3)]' : 'bg-white/10 hover:bg-white/20'}`}
               >
                 {deckA.isPlaying ? <Pause /> : <Play />}
                 {deckA.isPlaying ? 'PAUSE' : 'PLAY'}
               </button>
-              <button onClick={() => setCue('A')} className="bg-white/5 hover:bg-white/10 rounded-xl h-16 font-mono font-bold text-xs border border-white/10">CUE</button>
-              <button onClick={() => BrakeEffect('A')} className="bg-red-500/10 hover:bg-red-500/20 rounded-xl h-16 font-mono font-bold text-xs border border-red-500/20 text-red-500">BRAKE</button>
+              <button onClick={() => setCue('A')} className="bg-white/5 hover:bg-white/10 rounded-xl h-20 font-mono font-bold text-xs border border-white/10">CUE</button>
+              <button onClick={() => BrakeEffect('A')} className="bg-red-500/10 hover:bg-red-500/20 rounded-xl h-20 font-mono font-bold text-xs border border-red-500/20 text-red-500">BRAKE</button>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-white/40 uppercase">
-                  <span>Speed Offset</span>
-                  <span className="text-white">{deckA.playbackRate.toFixed(2)}x</span>
-                </div>
-                <input 
-                  type="range" min="0.5" max="2" step="0.01" 
-                  value={deckA.playbackRate}
-                  onChange={(e) => handlePitch('A', parseFloat(e.target.value))}
-                  className="w-full accent-white h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                />
-                <button 
-                  onClick={() => handleSync('A')}
-                  className="w-full h-8 rounded-lg bg-white/5 border border-white/10 text-[8px] font-black hover:bg-white/10 transition-all uppercase tracking-widest"
-                >
-                  SYNC TO B
-                </button>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-white/40 uppercase">
-                  <span>LP Filter</span>
-                  <span className="text-white">{Math.floor(deckA.filter)}Hz</span>
-                </div>
-                <input 
-                  type="range" min="100" max="20000" step="1" 
-                  value={deckA.filter}
-                  onChange={(e) => handleFilter('A', parseFloat(e.target.value))}
-                  className="w-full accent-white h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
+            <button 
+              onClick={() => handleSync('A')}
+              className="mt-4 w-full h-8 rounded-lg bg-white/5 border border-white/10 text-[8px] font-black hover:bg-white/10 transition-all uppercase tracking-widest"
+            >
+              SYNC TO B
+            </button>
           </div>
           
           <div className="grid grid-cols-4 gap-2">
@@ -1150,24 +1257,68 @@ export default function App() {
         </section>
 
         {/* CENTER MIXER */}
-        <section className="lg:col-span-12 xl:col-span-2 flex flex-col gap-8 items-center py-8 bg-white/5 rounded-[40px] border border-white/10 backdrop-blur-xl group">
+        <section className="lg:col-span-12 xl:col-span-2 flex flex-col gap-8 items-center py-8 bg-zinc-900 rounded-[40px] border border-white/10 backdrop-blur-xl group">
+           
+           <div className="flex flex-col gap-2 w-full px-4 mb-4">
+              <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] text-center">Beat Battle</span>
+              <div className="h-16 w-full bg-black/60 rounded-xl border border-white/5 overflow-hidden flex flex-col gap-1 p-1">
+                 <Visualizer analyser={analyserARef.current} color="#ffffff" type="wave" />
+                 <Visualizer analyser={analyserBRef.current} color="#00f2ff" type="wave" />
+              </div>
+           </div>
+
+           <div className="flex justify-center gap-6 w-full px-4 h-64">
+              {/* Deck A Fader */}
+              <div className="flex flex-col items-center gap-2 h-full">
+                 <span className="text-[8px] font-black text-white/40 uppercase">DECK A</span>
+                 <div className="relative flex-1 w-8 bg-black/40 rounded-full border border-white/5 flex items-center justify-center">
+                    <input 
+                      type="range" min="0" max="1" step="0.01"
+                      value={deckA.gain}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setDeckA(d => ({ ...d, gain: val }));
+                        if (gainARef.current) gainARef.current.gain.setTargetAtTime(val, audioCtxRef.current!.currentTime, 0.05);
+                      }}
+                      className="absolute w-44 rotate-[-90deg] accent-white bg-transparent appearance-none cursor-pointer"
+                    />
+                 </div>
+              </div>
+
+              {/* Deck B Fader */}
+              <div className="flex flex-col items-center gap-2 h-full">
+                 <span className="text-[8px] font-black text-[#00f2ff]/60 uppercase">DECK B</span>
+                 <div className="relative flex-1 w-8 bg-black/40 rounded-full border border-white/5 flex items-center justify-center">
+                    <input 
+                      type="range" min="0" max="1" step="0.01"
+                      value={deckB.gain}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setDeckB(d => ({ ...d, gain: val }));
+                        if (gainBRef.current) gainBRef.current.gain.setTargetAtTime(val, audioCtxRef.current!.currentTime, 0.05);
+                      }}
+                      className="absolute w-44 rotate-[-90deg] accent-[#00f2ff] bg-transparent appearance-none cursor-pointer"
+                    />
+                 </div>
+              </div>
+           </div>
+
            <div className="flex flex-col items-center gap-6 w-full px-6">
               <div className="flex items-center gap-2">
                 <Volume2 size={14} className="text-white/20" />
                 <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Master Mixer</label>
               </div>
-              <div className="relative w-full h-[300px] flex items-center justify-center">
-                 <div className="absolute inset-0 bg-black/20 rounded-full w-2 mx-auto" />
+              <div className="relative w-full h-[150px] flex items-center justify-center">
+                 <div className="absolute w-[250px] h-2 bg-black/40 rounded-full border border-white/5" />
                  <input 
                   type="range" 
                   min="-1" max="1" step="0.01" 
                   value={crossfade}
                   onChange={(e) => setCrossfade(parseFloat(e.target.value))}
-                  style={{ transform: 'rotate(-90deg)', width: '250px' }}
-                  className="accent-[#00f2ff] h-4 bg-transparent appearance-none cursor-pointer z-10"
+                  className="w-[250px] h-4 bg-transparent appearance-none cursor-pointer z-10 accent-white"
                  />
-                 <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-4 flex flex-col justify-between py-4 pointer-events-none opacity-20">
-                    {[...Array(11)].map((_, i) => <div key={i} className="h-[1px] w-full bg-white" />)}
+                 <div className="absolute left-1/2 -translate-x-1/2 w-[250px] flex justify-between px-2 pointer-events-none opacity-20">
+                    {[...Array(11)].map((_, i) => <div key={i} className="w-[1px] h-4 bg-white" />)}
                  </div>
               </div>
            </div>
@@ -1237,7 +1388,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-4 h-56">
+            <div className="grid grid-cols-12 gap-4 h-64">
               <div className="col-span-4 flex flex-col gap-3 justify-between pt-2">
                 {(['high', 'mid', 'low'] as const).map(band => (
                   <div key={band} className="flex flex-col gap-1 items-center">
@@ -1251,8 +1402,29 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="col-span-12 xl:col-span-7 flex flex-col justify-center items-center relative gap-4">
-                <JogWheel isPlaying={deckB.isPlaying} color="#00f2ff" deck="B" playerRef={playerBRef} />
+              <div className="col-span-7 flex flex-col justify-center items-center relative gap-4">
+                <div className="relative">
+                  <JogWheel 
+                    isPlaying={deckB.isPlaying} 
+                    color="#00f2ff" 
+                    deck="B" 
+                    playerRef={playerBRef} 
+                    vinylMode={isVinylMode}
+                    onScratch={() => scratch('B', 1)}
+                  />
+                  {/* Pitch Fader B */}
+                  <div className="absolute top-0 -left-12 h-full flex flex-col items-center gap-2">
+                    <span className="text-[7px] font-black text-[#00f2ff]/40 uppercase">Pitch</span>
+                    <div className="relative flex-1 w-4 bg-black/40 rounded-full border border-[#00f2ff]/10 flex items-center justify-center">
+                       <input 
+                        type="range" min="0.5" max="2" step="0.001" 
+                        value={deckB.playbackRate}
+                        onChange={(e) => handlePitch('B', parseFloat(e.target.value))}
+                        className="absolute w-40 rotate-[-90deg] accent-[#00f2ff] bg-transparent appearance-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div className="flex gap-1 w-full px-4 items-end h-16">
                    <Visualizer analyser={analyserBRef.current} color="#00f2ff" type={deckB.isPlaying ? 'bars' : 'wave'} />
                 </div>
@@ -1277,13 +1449,13 @@ export default function App() {
                 ))}
               </div>
 
-              {[0, 1, 2, 3].map(i => (
+              {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
                 <button 
                   key={i}
-                  onClick={() => deckB.cues[i] === 0 ? setCue('B', i) : jumpToCue('B', i)}
-                  className={`h-14 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckB.cues[i] !== 0 ? 'bg-orange-500/20 border-orange-500 text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'bg-white/5 border-white/10 text-white/20'}`}
+                  onClick={() => deckB.cues[i] === undefined || deckB.cues[i] === 0 ? setCue('B', i) : jumpToCue('B', i)}
+                  className={`h-12 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${deckB.cues[i] && deckB.cues[i] !== 0 ? 'bg-[#00f2ff]/40 border-[#00f2ff] text-white shadow-[0_0_10px_rgba(0,242,255,0.3)]' : 'bg-white/5 border-white/10 text-white/20'}`}
                 >
-                  CUE {i + 1}
+                  {i + 1}
                 </button>
               ))}
             </div>
@@ -1293,7 +1465,7 @@ export default function App() {
                 onClick={() => handleFilter('B', deckB.filter < 500 ? 20000 : 300)}
                 className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckB.filter < 500 ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'bg-white/5 border-white/10 text-white/40'}`}
               >
-                Kill LPF
+                KILL FILTER
               </button>
               <button 
                 onClick={() => handleEQ('B', 'high', deckB.eq.high === -40 ? 0 : -40)}
@@ -1367,15 +1539,6 @@ export default function App() {
             </div>
 
             <div className="mt-8 grid grid-cols-4 gap-3">
-              {[0, 1, 2, 3].map(i => (
-                <button 
-                  key={i}
-                  onClick={() => deckB.cues[i] === 0 ? setCue('B', i) : jumpToCue('B', i)}
-                  className={`h-16 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${deckB.cues[i] !== 0 ? 'bg-orange-500/20 border-orange-500 text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'bg-white/5 border-white/10 text-white/20'}`}
-                >
-                  CUE {i + 1}
-                </button>
-              ))}
               <button 
                 onClick={() => BrakeEffect('B')}
                 className="bg-red-500/10 hover:bg-red-500/20 rounded-xl h-20 font-mono font-bold text-xs border border-red-500/20 text-red-500"
@@ -1391,38 +1554,12 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-[#00f2ff]/40 uppercase">
-                  <span>Speed Offset</span>
-                  <span className="text-[#00f2ff]">{deckB.playbackRate.toFixed(2)}x</span>
-                </div>
-                <input 
-                  type="range" min="0.5" max="2" step="0.01" 
-                  value={deckB.playbackRate}
-                  onChange={(e) => handlePitch('B', parseFloat(e.target.value))}
-                  className="w-full accent-[#00f2ff] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                />
-                <button 
-                  onClick={() => handleSync('B')}
-                  className="w-full h-8 rounded-lg bg-[#00f2ff]/10 border border-[#00f2ff]/20 text-[8px] font-black hover:bg-[#00f2ff]/20 text-[#00f2ff] transition-all uppercase tracking-widest"
-                >
-                  SYNC TO A
-                </button>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-mono text-[#00f2ff]/40 uppercase">
-                  <span>LP Filter</span>
-                  <span className="text-[#00f2ff]">{Math.floor(deckB.filter)}Hz</span>
-                </div>
-                <input 
-                  type="range" min="100" max="20000" step="1" 
-                  value={deckB.filter}
-                  onChange={(e) => handleFilter('B', parseFloat(e.target.value))}
-                  className="w-full accent-[#00f2ff] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
+            <button 
+              onClick={() => handleSync('B')}
+              className="mt-4 w-full h-8 rounded-lg bg-[#00f2ff]/10 border border-[#00f2ff]/20 text-[8px] font-black hover:bg-[#00f2ff]/20 text-[#00f2ff] transition-all uppercase tracking-widest"
+            >
+              SYNC TO A
+            </button>
           </div>
 
           <div className="grid grid-cols-4 gap-2">
